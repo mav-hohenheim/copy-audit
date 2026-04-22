@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Copy Audit</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0A0A0C;
+    color: #E8E6E0;
+    font-family: 'DM Mono', 'Courier New', monospace;
+    min-height: 100vh;
+  }
+  header {
+    border-bottom: 1px solid #1E1E24;
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .header-title { font-size: 11px; letter-spacing: 0.2em; color: #555; text-transform: uppercase; }
+  .header-ver { font-size: 11px; color: #333; margin-left: 10px; }
+  #btn-new {
+    display: none;
+    background: none; border: 1px solid #2A2A30; color: #888;
+    padding: 6px 14px; font-size: 10px; letter-spacing: 0.15em;
+    text-transform: uppercase; cursor: pointer; font-family: inherit;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 40px 32px; }
+  h1 { font-size: clamp(26px, 5vw, 42px); font-weight: 400; margin-bottom: 12px; letter-spacing: -0.02em; line-height: 1.1; }
+  h1 span { color: #FF4D4D; }
+  .subtitle { color: #555; font-size: 13px; margin-bottom: 40px; }
+  .error-box {
+    display: none;
+    background: #1A0808; border: 1px solid #FF4D4D44;
+    color: #FF4D4D; padding: 12px 16px; font-size: 12px; margin-bottom: 24px;
+  }
+  .tabs { border-bottom: 1px solid #1E1E24; display: flex; margin-bottom: 28px; }
+  .tab {
+    padding: 10px 20px; font-size: 11px; letter-spacing: 0.15em;
+    text-transform: uppercase; cursor: pointer; font-family: inherit;
+    background: none; border: none; border-bottom: 2px solid transparent;
+    color: #444; transition: all 0.15s;
+  }
+  .tab.active { color: #E8E6E0; border-bottom-color: #FF4D4D; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  textarea {
+    width: 100%; min-height: 220px; background: #0D0D10;
+    border: 1px solid #1E1E24; color: #E8E6E0;
+    padding: 16px; font-size: 13px; font-family: inherit;
+    line-height: 1.7; resize: vertical; transition: border-color 0.15s;
+  }
+  textarea:focus { outline: none; border-color: #FF4D4D; }
+  .paste-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
+  .word-count { font-size: 10px; color: #333; }
+  #btn-audit {
+    background: #FF4D4D; border: none; color: #fff;
+    padding: 12px 28px; font-size: 11px; letter-spacing: 0.15em;
+    text-transform: uppercase; cursor: pointer; font-family: inherit;
+  }
+  .drop-zone {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 12px; padding: 64px 24px;
+    border: 1px solid #1E1E24; background: #0D0D10;
+    text-align: center; position: relative; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .drop-zone:hover, .drop-zone.over { border-color: #7B8CDE; background: #0A0A1A; }
+  .drop-zone .icon { font-size: 28px; opacity: 0.35; }
+  .drop-zone .dz-title { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: #888; }
+  .drop-zone .dz-sub { font-size: 10px; color: #3A3A44; }
+  .drop-zone input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+  /* Analyzing */
+  #phase-analyzing { display: none; text-align: center; padding-top: 80px; }
+  .spinner {
+    width: 52px; height: 52px; margin: 0 auto 24px;
+    border: 1px solid #1E1E24; border-top-color: #FF4D4D;
+    border-radius: 50%; animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .analyzing-label { font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: #555; }
+  /* Report */
+  #phase-report { display: none; }
+  .score-card {
+    display: flex; align-items: center; gap: 28px;
+    margin-bottom: 40px; padding: 28px;
+    border: 1px solid #1E1E24; background: #0D0D10;
+  }
+  .score-number { font-size: 52px; font-weight: 400; line-height: 1; letter-spacing: -0.03em; }
+  .score-label { font-size: 10px; color: #333; letter-spacing: 0.2em; text-transform: uppercase; margin-top: 4px; }
+  .score-right { flex: 1; }
+  .score-bar-bg { height: 2px; background: #1A1A20; margin-bottom: 14px; }
+  .score-bar-fill { height: 100%; transition: width 0.8s ease; }
+  .verdict { font-size: 13px; color: #AAA; line-height: 1.6; }
+  .source-name { font-size: 10px; color: #444; margin-top: 8px; }
+  .section-label { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #444; margin-bottom: 12px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 36px; }
+  .chip { padding: 7px 13px; display: flex; align-items: center; gap: 8px; }
+  .chip-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; }
+  .chip-label { font-size: 10px; color: #777; }
+  .chip-count { font-size: 13px; }
+  .issues-list { display: flex; flex-direction: column; gap: 1px; }
+  .issue { background: #0D0D10; border-left: 2px solid; padding: 14px 18px; }
+  .issue-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .issue-type { font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; }
+  .issue-severity { font-size: 9px; color: #333; }
+  .issue-fix { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  .issue-original { padding: 2px 8px; color: #FF6B6B; font-size: 12px; text-decoration: line-through; text-decoration-color: #FF4D4D66; background: #1A0A0A; }
+  .issue-arrow { color: #333; font-size: 10px; }
+  .issue-suggestion { padding: 2px 8px; color: #4ADE80; font-size: 12px; background: #0A1A0A; }
+  .issue-explanation { font-size: 11px; color: #555; }
+  .clean { font-size: 12px; color: #4ADE80; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <span class="header-title">COPY AUDIT</span>
+    <span class="header-ver">// v3.0</span>
+  </div>
+  <button id="btn-new" onclick="resetApp()">NEW AUDIT</button>
+</header>
+
+<main>
+
+  <!-- UPLOAD PHASE -->
+  <div id="phase-upload">
+    <h1>Grammar & Typo<br><span>Audit Report</span></h1>
+    <p class="subtitle">Paste your copy or upload an image — get a full error breakdown with a quality score.</p>
+
+    <div class="error-box" id="error-box"></div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('paste')">Paste Text</button>
+      <button class="tab" onclick="switchTab('image')">Upload Image</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-paste">
+      <textarea id="paste-input" placeholder="Paste your copy here — headlines, body text, captions, anything..." oninput="updateWordCount()"></textarea>
+      <div class="paste-footer">
+        <span class="word-count" id="word-count"></span>
+        <button id="btn-audit" onclick="runPasteAudit()">Run Audit →</button>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-image">
+      <div class="drop-zone" id="drop-zone"
+        ondrop="handleDrop(event)"
+        ondragover="handleDragOver(event)"
+        ondragleave="handleDragLeave(event)">
+        <div class="icon">⬢</div>
+        <div class="dz-title">Drop image or click to upload</div>
+        <div class="dz-sub">PNG, JPG, WEBP — text will be extracted automatically</div>
+        <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onchange="handleImageFile(event)" />
+      </div>
+    </div>
+  </div>
+
+  <!-- ANALYZING PHASE -->
+  <div id="phase-analyzing">
+    <div class="spinner"></div>
+    <div class="analyzing-label">Auditing...</div>
+  </div>
+
+  <!-- REPORT PHASE -->
+  <div id="phase-report">
+    <div class="score-card">
+      <div style="text-align:center; min-width:90px;">
+        <div class="score-number" id="score-number">0</div>
+        <div class="score-label">/ 100</div>
+      </div>
+      <div class="score-right">
+        <div class="score-bar-bg"><div class="score-bar-fill" id="score-bar"></div></div>
+        <div class="verdict" id="verdict"></div>
+        <div class="source-name" id="source-name"></div>
+      </div>
+    </div>
+
+    <div class="section-label">Issue Breakdown</div>
+    <div class="chips" id="chips"></div>
+
+    <div class="section-label" id="issues-label"></div>
+    <div class="issues-list" id="issues-list"></div>
+  </div>
+
+</main>
+
+<script>
+const TYPE_CONFIG = {
+  grammar:        { color: "#FF4D4D", label: "Grammar" },
+  spelling:       { color: "#FF8C42", label: "Spelling" },
+  punctuation:    { color: "#FFD166", label: "Punctuation" },
+  style:          { color: "#7B8CDE", label: "Style" },
+  other:          { color: "#A8DADC", label: "Other" },
+};
+
+function categoryMap(cat) {
+  if (!cat) return "other";
+  const c = cat.toLowerCase();
+  if (c.includes("spell") || c.includes("typo") || c.includes("misspell")) return "spelling";
+  if (c.includes("punct")) return "punctuation";
+  if (c.includes("style") || c.includes("redundan") || c.includes("colloc")) return "style";
+  if (c.includes("grammar") || c.includes("agreement") || c.includes("verb") || c.includes("tense")) return "grammar";
+  return "other";
+}
+
+function switchTab(tab) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  document.getElementById("tab-" + tab).classList.add("active");
+  event.target.classList.add("active");
+}
+
+function updateWordCount() {
+  const text = document.getElementById("paste-input").value.trim();
+  const wc = document.getElementById("word-count");
+  wc.textContent = text ? text.split(/\s+/).length + " words" : "";
+}
+
+function showError(msg) {
+  const box = document.getElementById("error-box");
+  box.textContent = "⚠ " + msg;
+  box.style.display = "block";
+}
+
+function hideError() {
+  document.getElementById("error-box").style.display = "none";
+}
+
+function setPhase(phase) {
+  document.getElementById("phase-upload").style.display = phase === "upload" ? "block" : "none";
+  document.getElementById("phase-analyzing").style.display = phase === "analyzing" ? "block" : "none";
+  document.getElementById("phase-report").style.display = phase === "report" ? "block" : "none";
+  document.getElementById("btn-new").style.display = phase === "report" ? "inline-block" : "none";
+}
+
+async function checkGrammar(text) {
+  const params = new URLSearchParams();
+  params.append("text", text);
+  params.append("language", "en-US");
+  const res = await fetch("https://api.languagetool.org/v2/check", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+  const data = await res.json();
+  return data.matches || [];
+}
+
+async function extractTextFromImage(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("apikey", "helloworld");
+  formData.append("language", "eng");
+  formData.append("isOverlayRequired", "false");
+  const res = await fetch("https://api.ocr.space/parse/image", { method: "POST", body: formData });
+  const data = await res.json();
+  if (data.IsErroredOnProcessing) throw new Error("OCR failed — try pasting the text instead.");
+  const text = (data.ParsedResults || []).map(r => r.ParsedText).join("\n");
+  if (!text.trim()) throw new Error("No text found in image — try pasting the text instead.");
+  return text;
+}
+
+function buildAndShowReport(matches, text, sourceName) {
+  const issues = matches.map(m => {
+    const type = categoryMap(m.rule?.category?.id || m.rule?.issueType || "");
+    const original = text.substring(m.offset, m.offset + m.length);
+    const suggestion = m.replacements?.[0]?.value || "";
+    return { type, severity: m.rule?.issueType === "style" ? "warning" : "error", original, suggestion: suggestion || "(remove)", explanation: m.message };
+  });
+
+  const summary = { grammar: 0, spelling: 0, punctuation: 0, style: 0, other: 0 };
+  issues.forEach(i => summary[i.type] = (summary[i.type] || 0) + 1);
+
+  const total = issues.length;
+  const wordCount = text.trim().split(/\s+/).length;
+  const score = Math.max(0, Math.round(100 - (total / Math.max(wordCount, 1)) * 500));
+  const scoreColor = score >= 80 ? "#4ADE80" : score >= 50 ? "#FFD166" : "#FF4D4D";
+
+  const verdict = total === 0 ? "No issues found — this copy is clean."
+    : total <= 3 ? `Minor issues only — ${total} fix${total > 1 ? "es" : ""} needed.`
+    : total <= 10 ? "Moderate issues detected — review recommended before publishing."
+    : "Significant errors found — this copy needs a thorough edit.";
+
+  document.getElementById("score-number").textContent = score;
+  document.getElementById("score-number").style.color = scoreColor;
+  document.getElementById("score-bar").style.width = score + "%";
+  document.getElementById("score-bar").style.background = scoreColor;
+  document.getElementById("verdict").textContent = verdict;
+  document.getElementById("source-name").textContent = total + " issue" + (total !== 1 ? "s" : "") + " found · " + sourceName;
+
+  const chipsEl = document.getElementById("chips");
+  chipsEl.innerHTML = "";
+  if (total === 0) {
+    chipsEl.innerHTML = '<span class="clean">✓ No issues detected</span>';
+  } else {
+    Object.entries(summary).forEach(([type, count]) => {
+      if (count > 0) {
+        const cfg = TYPE_CONFIG[type];
+        const chip = document.createElement("div");
+        chip.className = "chip";
+        chip.style.border = `1px solid ${cfg.color}33`;
+        chip.style.background = `${cfg.color}0A`;
+        chip.innerHTML = `<span class="chip-dot" style="background:${cfg.color}"></span><span class="chip-label">${cfg.label}</span><span class="chip-count" style="color:${cfg.color}">${count}</span>`;
+        chipsEl.appendChild(chip);
+      }
+    });
+  }
+
+  const issuesEl = document.getElementById("issues-list");
+  const issuesLabel = document.getElementById("issues-label");
+  issuesEl.innerHTML = "";
+  if (issues.length > 0) {
+    issuesLabel.textContent = `Issues to Fix (${issues.length})`;
+    issues.forEach(issue => {
+      const cfg = TYPE_CONFIG[issue.type];
+      const div = document.createElement("div");
+      div.className = "issue";
+      div.style.borderLeftColor = cfg.color;
+      div.innerHTML = `
+        <div class="issue-header">
+          <span class="issue-type" style="color:${cfg.color}">${cfg.label}</span>
+          <span class="issue-severity">${issue.severity}</span>
+        </div>
+        <div class="issue-fix">
+          <span class="issue-original">${escHtml(issue.original)}</span>
+          <span class="issue-arrow">→</span>
+          <span class="issue-suggestion">${escHtml(issue.suggestion)}</span>
+        </div>
+        <div class="issue-explanation">${escHtml(issue.explanation)}</div>
+      `;
+      issuesEl.appendChild(div);
+    });
+  } else {
+    issuesLabel.textContent = "";
+  }
+
+  setPhase("report");
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+async function runPasteAudit() {
+  hideError();
+  const text = document.getElementById("paste-input").value;
+  if (!text.trim()) { showError("Paste some text first."); return; }
+  setPhase("analyzing");
+  try {
+    const matches = await checkGrammar(text);
+    buildAndShowReport(matches, text, "Pasted text");
+  } catch(e) {
+    showError(e.message || "Something went wrong.");
+    setPhase("upload");
+  }
+}
+
+async function handleImageFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  hideError();
+  setPhase("analyzing");
+  try {
+    const text = await extractTextFromImage(file);
+    const matches = await checkGrammar(text);
+    buildAndShowReport(matches, text, file.name);
+  } catch(e) {
+    showError(e.message || "Something went wrong.");
+    setPhase("upload");
+  }
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById("drop-zone").classList.remove("over");
+  const file = e.dataTransfer.files[0];
+  if (file) handleImageFile({ target: { files: [file] } });
+}
+function handleDragOver(e) { e.preventDefault(); document.getElementById("drop-zone").classList.add("over"); }
+function handleDragLeave() { document.getElementById("drop-zone").classList.remove("over"); }
+
+function resetApp() {
+  setPhase("upload");
+  document.getElementById("paste-input").value = "";
+  document.getElementById("word-count").textContent = "";
+  hideError();
+}
+
+setPhase("upload");
+</script>
+</body>
+</html>
